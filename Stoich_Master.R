@@ -1,0 +1,35 @@
+
+##### Creating Master file of all Stoichiometry Data #####
+
+# INSTALL LIBRARIES
+install.packages("devtools")
+install.packages("googlesheets4")
+install.packages("Rtools")
+install.packages("tibble")
+
+# LOAD LIBRARIES
+
+library("devtools")
+library("tidyverse")
+library("lubridate")
+devtools::install_github("tidyverse/googlesheets4")
+library("googlesheets4")
+library("readxl")
+library("R.utils")
+library("broom")
+library("googledrive")
+library("tibble")
+
+# NOTE: FILES MUST BE GOOGLE SHEETS
+
+## get all Google spreadsheets in folder 'IsotopeData'
+## whose names contain the letters 'Enquist'
+data <- drive_ls(path = "IsotopeData", pattern = "Enquist", type = "spreadsheet")
+data$id
+
+# - Change XLSX files to Google Sheets (all)
+# - Make a function that extracts CN data then another function to extract P data
+# - put checks in the functions to make sure when run again, duplication does not happen
+# - use join to combine the two data sets where there are the same site and sample ID
+
+
