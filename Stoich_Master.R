@@ -27,12 +27,17 @@ library("tibble")
 data <- drive_ls(path = "IsotopeData", pattern = "Enquist", type = "spreadsheet")
 data$id
 
-data <- drive_ls(path = "Stoich2012/PR2012/CN", pattern = "Enquist")
+data2 <- drive_ls(path = "Stoich2012/PR2012/CN", pattern = "Enquist")
 
-
+filep <- drive_download(data2$name[1])
 drive_get(data$id)
-(downloaded_file <- drive_download(data$id[1]))
+(downloaded_file <- drive_download(data2$id[1]))
 
+downloaded_file$drive_resource$exportLinks$`application/vnd.oasis.opendocument.spreadsheet`[1]
+
+filep <- read_sheet(data$id[1])
+fileq <- read_sheet(data2$id[1])
+fileq <- read_xlsx(path = data2$name[1])
 # https://stackoverflow.com/questions/47851761/r-how-to-read-a-file-from-google-drive-using-r
 
 # - Change XLSX files to Google Sheets (all)
@@ -40,5 +45,3 @@ drive_get(data$id)
 # - Make a function that extracts CN data then another function to extract P data
 # - put checks in the functions to make sure when run again, duplication does not happen
 # - use join to combine the two data sets where there are the same site and sample ID
-
-
