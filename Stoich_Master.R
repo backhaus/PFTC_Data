@@ -24,20 +24,73 @@ library("tibble")
 
 ## get all Google spreadsheets in folder 'IsotopeData'
 ## whose names contain the letters 'Enquist'
+
+# Use the CNP_ENQUIST MASTER_16July2018 google sheet to compare CN file names and P file names 
+# to existing files names in various google drive folders
+
+# find Google sheet ID to read the sheet into RStudio
+data <- drive_ls(path = "Lab_Mac_Backup/MASTER FILES", pattern = "CNP_ENQUIST", type = "spreadsheet")
+# read the sheet into RStudio based on the ID
+file <- read_sheet(data$id[1])
+
+# put the unique file names in a data frame to later use anti_join
+master.file.names <- unique(file$`CN FILE NAME`)
+master.file.names <- append(master.file.names, unique(file$`P FILE NAME`))
+master.file.names <- as.data.frame(master.file.names)
+
+name <- "name"
+colnames(master.file.names) <- name
+
+# create large data frame with all available files from both Google Drive folders and subfolders
 data <- drive_ls(path = "IsotopeData", pattern = "Enquist", type = "spreadsheet")
-data$id
+data <- rbind(data, drive_ls(path = "Lab_Mac_Backup/MASTER FILES", pattern = "CNP_ENQUIST", type = "spreadsheet"))
 
-data2 <- drive_ls(path = "Stoich2012/PR2012/CN", pattern = "Enquist")
+data <- rbind(data, drive_ls(path = "Stoich2012/PR2012/CN"         , pattern = "Enquist"))
+data <- rbind(data, drive_ls(path = "Stoich2012/PR2012/P"          , pattern = "P_2012" ))
+data <- rbind(data, drive_ls(path = "Stoich2012/NIWOT2012/Niwot_CN", pattern = "CN_"    ))
+data <- rbind(data, drive_ls(path = "Stoich2012/NIWOT2012/Niwot_P" , pattern = "P_2012" ))
+data <- rbind(data, drive_ls(path = "Stoich2012/CR2012/CR_CN_2012" , pattern = "CN_"    ))
+data <- rbind(data, drive_ls(path = "Stoich2012/CR2012/CR_P_2012"  , pattern = "P_"     ))
+data <- rbind(data, drive_ls(path = "Stoich2012/Co2012/Co_CN_2012" , pattern = "CN_"    ))
+data <- rbind(data, drive_ls(path = "Stoich2012/Co2012/Co_P_2012"  , pattern = "P_"     ))
 
-filep <- drive_download(data2$name[1])
-drive_get(data$id)
-(downloaded_file <- drive_download(data2$id[1]))
+data <- rbind(data, drive_ls(path = "Lisa_Peru Stoich 2013_2014_2015_2016_2017/CN_2013_2014_2015/CN Results"  , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Lisa_Peru Stoich 2013_2014_2015_2016_2017/Phosphorus_2013_2014_2015_2016", pattern = "P_" ))
 
-downloaded_file$drive_resource$exportLinks$`application/vnd.oasis.opendocument.spreadsheet`[1]
+data <- rbind(data, drive_ls(path = "Stoich 2016_2017/CN/CN_Peru"        , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2016_2017/P/P_Peru"          , pattern = "P_" ))
+data <- rbind(data, drive_ls(path = "Stoich 2016_2017/CN/CN_Macrosystems", pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2016_2017/P/P_Macrosystems"  , pattern = "P_" ))
 
-filep <- read_sheet(data$id[1])
-fileq <- read_sheet(data2$id[1])
-fileq <- read_xlsx(path = data2$name[1])
+data <- rbind(data, drive_ls(path = "Michaletz-Blonder2016_2017", pattern = "CN_"))
+
+data <- rbind(data, drive_ls(path = "Stoich 2017-2018/COLORADO/CN_Colorado" , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2017-2018/COLORADO/P_Colorado"  , pattern = "P_" ))
+data <- rbind(data, drive_ls(path = "Stoich 2017-2018/CHINA/CN_China"       , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2017-2018/CHINA/P_China"        , pattern = "P_" ))
+data <- rbind(data, drive_ls(path = "Stoich 2017-2018/Biosphere2/Stoich_Biosphere/CN_Biosphere" , pattern = "CN_"   ))
+data <- rbind(data, drive_ls(path = "Stoich 2017-2018/Biosphere2/Stoich_Biosphere/P_Biosphere"  , pattern = "P_2018"))
+data <- rbind(data, drive_ls(path = "Stoich 2017-2018/Biosphere2/d180_Macrosystems"))
+
+data <- rbind(data, drive_ls(path = "Stoich 2018-2019/Peru"  , pattern = "P_" ))
+data <- rbind(data, drive_ls(path = "Stoich 2018-2019/Peru"  , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2018-2019/Norway", pattern = "P_" ))
+data <- rbind(data, drive_ls(path = "Stoich 2018-2019/Norway", pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2018-2019/China" , pattern = "P_" ))
+data <- rbind(data, drive_ls(path = "Stoich 2018-2019/China" , pattern = "CN_"))
+
+data <- rbind(data, drive_ls(path = "Stoich 2019-2020/William", pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2019-2020/RMBL"   , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Peru"   , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Peru"   , pattern = "P_" ))
+data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Norway" , pattern = "CN_"))
+data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Norway" , pattern = "P_" ))
+
+# remove .xslx or .xls from data[,name]
+data$name <- as.character(sub(".xlsx", "", data$name))
+data$name <- as.character(sub(".xls", "", data$name))
+
+missing <- anti_join(master.file.names, data, by = name)
 # https://stackoverflow.com/questions/47851761/r-how-to-read-a-file-from-google-drive-using-r
 
 # - Change XLSX files to Google Sheets (all)
