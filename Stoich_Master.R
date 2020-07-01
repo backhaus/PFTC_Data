@@ -91,6 +91,12 @@ data$name <- as.character(sub(".xlsx", "", data$name))
 data$name <- as.character(sub(".xls", "", data$name))
 
 missing <- anti_join(master.file.names, data, by = name)
+missing.2 <- anti_join(data, master.file.names, by = name)
+
+test <- read_sheet(missing.2$id[33])
+test <- read_sheet(missing.2$id[1])
+test <- read_sheet(missing.2$id[93])
+
 # https://stackoverflow.com/questions/47851761/r-how-to-read-a-file-from-google-drive-using-r
 
 # - Change XLSX files to Google Sheets (all)
