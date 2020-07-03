@@ -6,6 +6,8 @@ install.packages("devtools")
 install.packages("googlesheets4")
 install.packages("Rtools")
 install.packages("tibble")
+install.packages("data.table")
+install.packages("dplyr")
 
 # LOAD LIBRARIES
 
@@ -19,6 +21,8 @@ library("R.utils")
 library("broom")
 library("googledrive")
 library("tibble")
+library("data.table")
+library("dplyr")
 
 # NOTE: FILES MUST BE GOOGLE SHEETS
 
@@ -87,15 +91,52 @@ data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Norway" , pattern = "CN_")
 data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Norway" , pattern = "P_" ))
 
 # remove .xslx or .xls from data[,name]
-data$name <- as.character(sub(".xlsx", "", data$name))
-data$name <- as.character(sub(".xls", "", data$name))
+# data$name <- as.character(sub(".xlsx", "", data$name))
+# data$name <- as.character(sub(".xls" , "", data$name))
 
-missing <- anti_join(master.file.names, data, by = name)
-missing.2 <- anti_join(data, master.file.names, by = name)
+# missing <- anti_join(master.file.names, data, by = name)
+missing <- anti_join(data, master.file.names, by = name)
 
-test <- read_sheet(missing.2$id[33])
-test <- read_sheet(missing.2$id[1])
-test <- read_sheet(missing.2$id[93])
+# identify files that do not have final data in them
+missing.ignore <- which(missing$name %like% "emplate" | 
+                        missing$name %like% "Test Run"|
+                        missing$name %like% "Species ")
+
+# remove template files and Test files etc. from the names in the list that are missing
+# from the most current master and are in the Google Drive folders
+missing <- missing[-c(missing.ignore),]
+
+# separate the file names into CN, P, etc.
+# Each have similar file formats
+cn.files <- missing[which(missing$name %like% "CN_"),]
+
+p.files <- missing[ which(missing$name %like% "P_"  ),]
+p.files <- p.files[-which(p.files$name %like% "CNP_"),]
+
+master.files <- missing[which(missing$name %like% "CNP_"),]
+
+file_out <- NULL
+cor.fact <- NULL
+
+# 
+test <- read_sheet(p.files$id[1])
+dim(test)
+
+# isolate correction factor, create separate tibble with 
+cor.fact <- rbind(cor.fact, test[[89,16]])
+
+test <- test[10:90, c(1:2,5,15:18)]
+
+colnames(test) <- test[2,]
+test <- test[which(test$`list("Column")` == "C"),]
+
+test <- filter(test, test$SITE != "Hard Red Spring Wheat Flour")
+test <- test[,-c(3:4)]
+
+colnames(test)  <- c("Site", "Sample Code", "%P", "P STD DEV", "P CO VAR")
+test$P_filename <- rep(p.files$name[1])
+
+file_out <- rbind(file_out, test)
 
 # https://stackoverflow.com/questions/47851761/r-how-to-read-a-file-from-google-drive-using-r
 
