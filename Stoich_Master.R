@@ -8,6 +8,7 @@ install.packages("Rtools")
 install.packages("tibble")
 install.packages("data.table")
 install.packages("dplyr")
+install.packages("tibble")
 
 # LOAD LIBRARIES
 
@@ -23,6 +24,7 @@ library("googledrive")
 library("tibble")
 library("data.table")
 library("dplyr")
+library("tibble")
 
 # NOTE: FILES MUST BE GOOGLE SHEETS
 
@@ -116,10 +118,53 @@ p.files <- p.files[-which(p.files$name %like% "CNP_"),]
 master.files <- missing[which(missing$name %like% "CNP_"),]
 
 file_out <- NULL
-cor.fact <- NULL
+cor.fact <- tibble(correction.factor = 0, problem = "NA", file.name = "NA")
 
+# testing
+sub.p.files <- p.files[c(35:75),]
 # 
+
+for(i in 1:max(length(sub.p.files$name))){
+  file <- read_sheet(sub.p.files$id[i])
+  
+  if (dim(file)[1] == 90){
+    
+    if(is.na(file[[89,16]])){
+       cor.fact[i,2] <- "File has no data"
+    } else{
+    cor.fact[i,1] <- file[[89,16]]
+    cor.fact[i,3] <- sub.p.files$name[i]
+    
+      if(cor.fact[i,1] > 1.50){
+         cor.fact[i,2] <- "Greater than 1.50"
+      } else{}
+    
+      if(cor.fact[i,1] < 0.85){
+         cor.fact[i,2] <- "Less than 0.85"
+      } else{}
+    
+    }
+    
+    file <- file[10:90, c(1:2, 5, 15:18)]
+    colnames(file) <- file[2,]
+    
+    file <- file[which(file$`list("Column")` == "C"),]
+    file <- filter(file, file$SITE != "Hard Red Spring Wheat Flour")
+    
+    file <- file[,-c(3:4)]
+    
+    colnames(file)  <- c("Site", "Sample Code", "%P", "P STD DEV", "P CO VAR")
+    file$P_filename <- rep(sub.p.files$name[i])
+    
+    file_out <- rbind(file_out, file)
+  }  else{} 
+  
+ #return(file_out) 
+# return(cor.fact)
+}
+
 test <- read_sheet(p.files$id[1])
+test <- read_sheet(p.files$id[40])
 dim(test)
 
 # isolate correction factor, create separate tibble with 
