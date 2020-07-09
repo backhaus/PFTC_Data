@@ -11,7 +11,7 @@ install.packages("dplyr")
 install.packages("tibble")
 
 # LOAD LIBRARIES
-
+    
 library("devtools")
 library("tidyverse")
 library("lubridate")
@@ -117,11 +117,19 @@ p.files <- p.files[-which(p.files$name %like% "CNP_"),]
 
 master.files <- missing[which(missing$name %like% "CNP_"),]
 
-file_out <- NULL
-cor.fact <- tibble(correction.factor = 0, problem = "NA", file.name = "NA")
 
+
+#### PHOSPHORUS DATA #####
+file_out <- NULL
+# cor.fact <- tibble(correction.factor = 0, problem = "NA", file.name = "NA")
 # testing
-sub.p.files <- p.files[c(35:75),]
+sub.p.files <- p.files[c(56:94),]
+sub.p.files <- p.files
+
+cor.fact <- matrix(nrow = length(sub.p.files$name), ncol = 3)
+names <- c("correction.factor", "problem", "file.name")
+colnames(cor.fact) <- names
+cor.fact <- as.data.frame(cor.fact)
 # 
 
 for(i in 1:max(length(sub.p.files$name))){
@@ -132,6 +140,7 @@ for(i in 1:max(length(sub.p.files$name))){
     if(is.na(file[[89,16]])){
        cor.fact[i,2] <- "File has no data"
     } else{
+     
     cor.fact[i,1] <- file[[89,16]]
     cor.fact[i,3] <- sub.p.files$name[i]
     
@@ -159,29 +168,74 @@ for(i in 1:max(length(sub.p.files$name))){
     file_out <- rbind(file_out, file)
   }  else{} 
   
- #return(file_out) 
-# return(cor.fact)
 }
 
-test <- read_sheet(p.files$id[1])
-test <- read_sheet(p.files$id[40])
-dim(test)
+###### END OF PHOSPHORUS DATA ######
 
-# isolate correction factor, create separate tibble with 
-cor.fact <- rbind(cor.fact, test[[89,16]])
+#### CN DATA #####
+cn.files <- cn.files[-which(cn.files$name %like% ".xls"),]
+cn.files <- cn.files[-which(cn.files$name == "CN_Michaletz2016.2"),]
 
-test <- test[10:90, c(1:2,5,15:18)]
+cn.info <- matrix(nrow = length(cn.files$name), ncol = 4)
+names <- c("file.name", "id", "row.length", "column.length")
+colnames(cn.info) <- names
+cn.info <- as.data.frame(cn.info)
 
-colnames(test) <- test[2,]
-test <- test[which(test$`list("Column")` == "C"),]
+cn_out <- tibble(sample.code = "NA", year = 0, site = "NA",
+                 taxon = "NA",  C = 0,  N = 0, CN.ratio = 0, 
+                 d15N = 0, d13C = 0, date.processed = "NA", 
+                 file.name = "NA")
 
-test <- filter(test, test$SITE != "Hard Red Spring Wheat Flour")
-test <- test[,-c(3:4)]
+cn.sub <- NULL
 
-colnames(test)  <- c("Site", "Sample Code", "%P", "P STD DEV", "P CO VAR")
-test$P_filename <- rep(p.files$name[1])
+for(i in 1:max(length(cn.files$name))){
+  file <- read_sheet(cn.files$id[i])
+  
+  cn.info[i,1] <- cn.files$name[i]
+  cn.info[i,2] <- cn.files$id[i]
+  cn.info[i,3] <- as.matrix(dim(file))[1,]
+  cn.info[i,4] <- as.matrix(dim(file))[2,]
+ 
+  print(cn.files$name[i])
+  print(dim(file))
+  
+}
 
-file_out <- rbind(file_out, test)
+for(i in 1:max(length(cn.files$name))){
+  file <- read_sheet(cn.files$id[i])
+  
+  if(which(file[,1] %like% "REPORT OF ANALYS") == 1){
+     # sub.date.1 <- substr(file[[6,9]], 1,  3)
+     # sub.date.2 <- substr(file[[6,9]], 10, 17)
+     # sub.date.2 <- paste(sub.date.1, sub.date.2)
+     # cn.date <- as.Date(sub.date.2, format = "%B %d, %Y")
+     
+     file <- file[c(which(file[,1] == "Sample" | file[,2] == "Sample ID"):dim(file)[1]), c(1:11)]
+     colnames(file) <- file[1,]
+     
+     file <- file[-c(which(file[,1] == "NULL")),]
+     
+     file <- file[-c(which(file[,1] == "Sample")),]
+     file <- file[-c(which(file[,2] == "Sample ID")),]
+     file <- file[-c(which(is.na(file[,3]))),]
+     file <- file[!grepl("NA", names(file))]
+     file <- file[!grepl("R", names(file))]
+     file <- file[!grepl("list(\"C\")", names(file))]
+      
+  }
+}
+
+file <- read_sheet(cn.files$id[i])
+
+i=8
+file <- read_sheet(cn.info[8,2])
+
+dim(file)
+
+# CN files pre-Isotope lab have dim of 108 rows and 8 columns
+
+# CN files post-Isotope lab have dim of x rows and greater than 9 columns
+
 
 # https://stackoverflow.com/questions/47851761/r-how-to-read-a-file-from-google-drive-using-r
 
