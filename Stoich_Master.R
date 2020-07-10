@@ -181,10 +181,12 @@ names <- c("file.name", "id", "row.length", "column.length")
 colnames(cn.info) <- names
 cn.info <- as.data.frame(cn.info)
 
-cn_out <- tibble(sample.code = "NA", year = 0, site = "NA",
+cn_out <- tibble(sample.id = "NA", year = 0, site = "NA",
                  taxon = "NA",  C = 0,  N = 0, CN.ratio = 0, 
                  d15N = 0, d13C = 0, date.processed = "NA", 
                  file.name = "NA")
+
+cn_out.1 <- tibble(sample.id = "NA", site = "NA")
 
 cn.sub <- NULL
 
@@ -203,8 +205,25 @@ for(i in 1:max(length(cn.files$name))){
 
 for(i in 1:max(length(cn.files$name))){
   file <- read_sheet(cn.files$id[i])
+ 
+  if(length(which(file[,5] %like% "CN Worksheet")) != 0){
+     file <- file[c(which(file[,2] == "ID"):dim(file)[1]), c(2:3)]
+     colnames(file) <- file[1,]
+     file <- file[-1,]
+     
+     if(length(which(file[,1] == "NULL")) != 0){
+        file <- file[-c(which(file[,1] == "NULL")),]
+     } else{
+        file <- file[-c(which(is.na(file[,1]))),]
+     }
+     
+     file.names <- c("sample id", "site")
+     colnames(file) <- file.names
   
-  if(which(file[,1] %like% "REPORT OF ANALYS") == 1){
+     cn_out.1 <- rbind(cn_out.1, file)
+  }
+  
+  if(length(which(file[,1] %like% "REPORT OF ANALYSES")) != 0){
      # sub.date.1 <- substr(file[[6,9]], 1,  3)
      # sub.date.2 <- substr(file[[6,9]], 10, 17)
      # sub.date.2 <- paste(sub.date.1, sub.date.2)
@@ -214,14 +233,35 @@ for(i in 1:max(length(cn.files$name))){
      colnames(file) <- file[1,]
      
      file <- file[-c(which(file[,1] == "NULL")),]
-     
-     file <- file[-c(which(file[,1] == "Sample")),]
-     file <- file[-c(which(file[,2] == "Sample ID")),]
-     file <- file[-c(which(is.na(file[,3]))),]
      file <- file[!grepl("NA", names(file))]
-     file <- file[!grepl("R", names(file))]
-     file <- file[!grepl("list(\"C\")", names(file))]
-      
+     
+     if(colnames(file[,1]) == "list(NULL)"){
+        file.names <- c("remove.1", "Sample ID", "Site", "remove.2", "remove.3", "%C", "%N", "CN ratio",
+                        "d15N", "d13C")
+        colnames(file) <- file.names
+        file <- file[!grepl("remove", names(file))]
+     }
+     
+     if(length(which(file[,1] == "Sample")) != 0){
+        file <- file[-c(which(file[,1] == "Sample")),]
+       
+       # Testing if first column is only numbers 1-96 for the samples or the sample code
+       if(file[[5,1]] == 5){
+          file.names <- c("remove.1", "sample ID", "Site", "remove.2", "remove.3", "%C", "%N", "CN ratio",
+                          "d15N", "d13C")
+          colnames(file) <- file.names
+          file <- file[!grepl("remove", names(file))]
+       }
+     }
+     
+     if(length(which(file[,2] == "Sample ID")) != 0){
+        file <- file[-c(which(file[,2] == "Sample ID")),]
+     }
+     
+     file <- file[-c(which(is.na(file[,1]))),]
+    
+     
+   cn_out <- rbind(cn_out, file) 
   }
 }
 
