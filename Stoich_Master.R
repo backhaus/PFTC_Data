@@ -110,7 +110,7 @@ missing <- missing[-c(missing.ignore),]
 
 # separate the file names into CN, P, etc.
 # Each have similar file formats
-cn.files <- missing[which(missing$name %like% "CN_"),]
+
 
 p.files <- missing[ which(missing$name %like% "P_"  ),]
 p.files <- p.files[-which(p.files$name %like% "CNP_"),]
@@ -173,6 +173,9 @@ for(i in 1:max(length(sub.p.files$name))){
 ###### END OF PHOSPHORUS DATA ######
 
 #### CN DATA #####
+
+cn.files <- missing[which(missing$name %like% "CN_"),]
+
 cn.files <- cn.files[-which(cn.files$name %like% ".xls"),]
 cn.files <- cn.files[-which(cn.files$name == "CN_Michaletz2016.2"),]
 
@@ -186,25 +189,19 @@ cn_out <- tibble(sample.id = "NA", year = 0, site = "NA",
                  d15N = 0, d13C = 0, date.processed = "NA", 
                  file.name = "NA")
 
-cn_out.1 <- tibble(sample.id = "NA", site = "NA")
+cn_out <- tibble(sample.id = "NA", site = "NA",
+                  C = 0,  N = 0, CN.ratio = 0, 
+                 d15N = 0, d13C = 0, cn.file.name = "NA")
 
+cn_out.1 <- tibble(sample.id = "NA", site = "NA", cn.file.name = "NA")
 cn.sub <- NULL
 
-for(i in 1:max(length(cn.files$name))){
-  file <- read_sheet(cn.files$id[i])
-  
-  cn.info[i,1] <- cn.files$name[i]
-  cn.info[i,2] <- cn.files$id[i]
-  cn.info[i,3] <- as.matrix(dim(file))[1,]
-  cn.info[i,4] <- as.matrix(dim(file))[2,]
- 
-  print(cn.files$name[i])
-  print(dim(file))
-  
-}
 
-for(i in 1:max(length(cn.files$name))){
-  file <- read_sheet(cn.files$id[i])
+cn.files.sub <- cn.files[1:25,]
+
+
+for(i in 1:max(length(cn.files.sub$name))){
+  file <- read_sheet(cn.files.sub$id[i])
  
   if(length(which(file[,5] %like% "CN Worksheet")) != 0){
      file <- file[c(which(file[,2] == "ID"):dim(file)[1]), c(2:3)]
@@ -217,9 +214,25 @@ for(i in 1:max(length(cn.files$name))){
         file <- file[-c(which(is.na(file[,1]))),]
      }
      
-     file.names <- c("sample id", "site")
+     file.names <- c("sample.id", "site")
      colnames(file) <- file.names
-  
+     
+     if(cn.files.sub$name[i] %like% "CN_20"){
+        year.of.file <- NULL
+        for(j in nchar(cn.files.sub$name[i])){
+            year.search <- substring(cn.files.sub$name[i], j, j+3)
+              if(year.search == "2008" | year.search == "2009" |
+                 year.search == "2010" | year.search == "2011" |
+                 year.search == "2012"){
+                 year.of.file <- year.search
+                 
+                 print(year.of.file)
+                 break
+              }
+        }
+     }
+     
+     file$cn.file.name <- rep("Need results from Isotope Lab", length(file$sample.id))
      cn_out.1 <- rbind(cn_out.1, file)
   }
   
@@ -236,10 +249,11 @@ for(i in 1:max(length(cn.files$name))){
      file <- file[!grepl("NA", names(file))]
      
      if(colnames(file[,1]) == "list(NULL)"){
-        file.names <- c("remove.1", "Sample ID", "Site", "remove.2", "remove.3", "%C", "%N", "CN ratio",
+        file.names <- c("remove.1", "sample.id", "site", "remove.2", "remove.3", "C", "N", "CN.ratio",
                         "d15N", "d13C")
         colnames(file) <- file.names
         file <- file[!grepl("remove", names(file))]
+        
      }
      
      if(length(which(file[,1] == "Sample")) != 0){
@@ -247,25 +261,31 @@ for(i in 1:max(length(cn.files$name))){
        
        # Testing if first column is only numbers 1-96 for the samples or the sample code
        if(file[[5,1]] == 5){
-          file.names <- c("remove.1", "sample ID", "Site", "remove.2", "remove.3", "%C", "%N", "CN ratio",
+          file.names <- c("remove.1", "sample.id", "site", "remove.2", "remove.3", "C", "N", "CN.ratio",
                           "d15N", "d13C")
           colnames(file) <- file.names
           file <- file[!grepl("remove", names(file))]
+        
        }
      }
      
      if(length(which(file[,2] == "Sample ID")) != 0){
         file <- file[-c(which(file[,2] == "Sample ID")),]
+        
      }
      
      file <- file[-c(which(is.na(file[,1]))),]
-    
+     file$cn.file.name <- rep(cn.files.sub$name[i], length(file$sample.id))
      
-   cn_out <- rbind(cn_out, file) 
+     if(cn.files.sub$name[i] %like% "CN_20"){
+       
+     }
+     
+     cn_out <- rbind(cn_out, file) 
   }
 }
 
-file <- read_sheet(cn.files$id[i])
+file <- read_sheet(cn.files.sub$id[i])
 
 i=8
 file <- read_sheet(cn.info[8,2])
