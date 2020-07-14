@@ -9,6 +9,7 @@ install.packages("tibble")
 install.packages("data.table")
 install.packages("dplyr")
 install.packages("tibble")
+install.packages("BIEN")
 
 # LOAD LIBRARIES
     
@@ -25,6 +26,9 @@ library("tibble")
 library("data.table")
 library("dplyr")
 library("tibble")
+library("BIEN")
+
+trait_head <- BIEN:::.BIEN_sql("SELECT * FROM agg_traits LIMIT 10;")
 
 # NOTE: FILES MUST BE GOOGLE SHEETS
 
@@ -111,15 +115,10 @@ missing <- missing[-c(missing.ignore),]
 # separate the file names into CN, P, etc.
 # Each have similar file formats
 
-
+#### PHOSPHORUS DATA #####
 p.files <- missing[ which(missing$name %like% "P_"  ),]
 p.files <- p.files[-which(p.files$name %like% "CNP_"),]
 
-master.files <- missing[which(missing$name %like% "CNP_"),]
-
-
-
-#### PHOSPHORUS DATA #####
 file_out <- NULL
 # cor.fact <- tibble(correction.factor = 0, problem = "NA", file.name = "NA")
 # testing
@@ -170,6 +169,21 @@ for(i in 1:max(length(sub.p.files$name))){
   
 }
 
+
+file_out$P_filename <- as.factor(file_out$P_filename)
+
+p.names.loop$name <- as.character(unique(file_out$P_filename))
+
+p.names.loop <- as.data.frame(p.names.loop)
+p.names.loop$nbr <- seq(1:94)
+
+p.names.loop <- as.data.frame(p.names.loop)
+# p.names.loop <- p.names.loop[1:94,]
+# p.names.loop <- as.character(p.names.loop)
+# test <- cbind(p.files$name, p.names.loop)
+
+p.missing <- anti_join(p.names.loop, p.files, by = name)
+
 ###### END OF PHOSPHORUS DATA ######
 
 #### CN DATA #####
@@ -191,13 +205,13 @@ cn_out <- tibble(sample.id = "NA", year = 0, site = "NA",
 
 cn_out <- tibble(sample.id = "NA", site = "NA",
                   C = 0,  N = 0, CN.ratio = 0, 
-                 d15N = 0, d13C = 0, cn.file.name = "NA")
+                 d15N = 0, d13C = 0, year = "NA", cn.file.name = "NA")
 
-cn_out.1 <- tibble(sample.id = "NA", site = "NA", cn.file.name = "NA")
+cn_out.1 <- tibble(sample.id = "NA", site = "NA", year = "NA", cn.file.name = "NA")
 cn.sub <- NULL
 
 
-cn.files.sub <- cn.files[1:25,]
+cn.files.sub <- cn.files
 
 
 for(i in 1:max(length(cn.files.sub$name))){
@@ -217,22 +231,10 @@ for(i in 1:max(length(cn.files.sub$name))){
      file.names <- c("sample.id", "site")
      colnames(file) <- file.names
      
-     if(cn.files.sub$name[i] %like% "CN_20"){
-        year.of.file <- NULL
-        for(j in nchar(cn.files.sub$name[i])){
-            year.search <- substring(cn.files.sub$name[i], j, j+3)
-              if(year.search == "2008" | year.search == "2009" |
-                 year.search == "2010" | year.search == "2011" |
-                 year.search == "2012"){
-                 year.of.file <- year.search
-                 
-                 print(year.of.file)
-                 break
-              }
-        }
-     }
-     
+     # extract year from file name
+     file$year <- rep(str_extract(string = cn.files.sub$name[i], pattern = "20[0-9]+"), length(file$sample.id))
      file$cn.file.name <- rep("Need results from Isotope Lab", length(file$sample.id))
+     
      cn_out.1 <- rbind(cn_out.1, file)
   }
   
@@ -242,7 +244,7 @@ for(i in 1:max(length(cn.files.sub$name))){
      # sub.date.2 <- paste(sub.date.1, sub.date.2)
      # cn.date <- as.Date(sub.date.2, format = "%B %d, %Y")
      
-     file <- file[c(which(file[,1] == "Sample" | file[,2] == "Sample ID"):dim(file)[1]), c(1:11)]
+     file <- file[c(which(file[,1] == "Sample" | file[,2] == "Sample ID"):dim(file)[1]), c(1:14)]
      colnames(file) <- file[1,]
      
      file <- file[-c(which(file[,1] == "NULL")),]
@@ -265,32 +267,36 @@ for(i in 1:max(length(cn.files.sub$name))){
                           "d15N", "d13C")
           colnames(file) <- file.names
           file <- file[!grepl("remove", names(file))]
-        
        }
      }
      
      if(length(which(file[,2] == "Sample ID")) != 0){
         file <- file[-c(which(file[,2] == "Sample ID")),]
-        
      }
      
+     file <- file[, 1:7]
      file <- file[-c(which(is.na(file[,1]))),]
-     file$cn.file.name <- rep(cn.files.sub$name[i], length(file$sample.id))
      
-     if(cn.files.sub$name[i] %like% "CN_20"){
-       
-     }
+     # extract year from file name
+     file$year <- rep(str_extract(string = cn.files.sub$name[i], pattern = "20[0-9]+"), length(file$sample.id))
+     file$cn.file.name <- rep(cn.files.sub$name[i], length(file$sample.id))
      
      cn_out <- rbind(cn_out, file) 
   }
 }
 
-file <- read_sheet(cn.files.sub$id[i])
+##### end CN ######
 
-i=8
-file <- read_sheet(cn.info[8,2])
+##### start other master ######
+master.files <- missing[which(missing$name %like% "CNP_"),]
+master.files <- master.files[-which(master.files$name %like% ".xls"),]
 
-dim(file)
+file.1 <- read_sheet(master.files$id[1])
+file.2 <- read_sheet(master.files$id[2])
+
+
+
+
 
 # CN files pre-Isotope lab have dim of 108 rows and 8 columns
 
