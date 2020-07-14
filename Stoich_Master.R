@@ -26,9 +26,9 @@ library("tibble")
 library("data.table")
 library("dplyr")
 library("tibble")
-library("BIEN")
+# library("BIEN")
 
-trait_head <- BIEN:::.BIEN_sql("SELECT * FROM agg_traits LIMIT 10;")
+# trait_head <- BIEN:::.BIEN_sql("SELECT * FROM agg_traits LIMIT 10;")
 
 # NOTE: FILES MUST BE GOOGLE SHEETS
 
@@ -119,10 +119,10 @@ missing <- missing[-c(missing.ignore),]
 p.files <- missing[ which(missing$name %like% "P_"  ),]
 p.files <- p.files[-which(p.files$name %like% "CNP_"),]
 
-file_out <- NULL
+p_out <- NULL
 # cor.fact <- tibble(correction.factor = 0, problem = "NA", file.name = "NA")
 # testing
-sub.p.files <- p.files[c(56:94),]
+# sub.p.files <- p.files[c(56:94),]
 sub.p.files <- p.files
 
 cor.fact <- matrix(nrow = length(sub.p.files$name), ncol = 3)
@@ -138,6 +138,7 @@ for(i in 1:max(length(sub.p.files$name))){
     
     if(is.na(file[[89,16]])){
        cor.fact[i,2] <- "File has no data"
+       cor.fact[i,3] <- sub.p.files$name[i]
     } else{
      
     cor.fact[i,1] <- file[[89,16]]
@@ -156,33 +157,50 @@ for(i in 1:max(length(sub.p.files$name))){
     file <- file[10:90, c(1:2, 5, 15:18)]
     colnames(file) <- file[2,]
     
-    file <- file[which(file$`list("Column")` == "C"),]
-    file <- filter(file, file$SITE != "Hard Red Spring Wheat Flour")
+    colnames(file)  <- c("site", "sample.id", "column", "corrected", "P", "P.Std.Dev", "P.Co.Var")
+    file <- file[which(file$column == "C"),]
+    file <- filter(file, file$site != "Hard Red Spring Wheat Flour")
     
     file <- file[,-c(3:4)]
     
-    colnames(file)  <- c("Site", "Sample Code", "%P", "P STD DEV", "P CO VAR")
-    file$P_filename <- rep(sub.p.files$name[i])
+    file$year <- rep(str_extract(string = sub.p.files$name[i], pattern = "20[0-9]+"), length(file$sample.id))
+    file$P.filename <- rep(sub.p.files$name[i])
     
-    file_out <- rbind(file_out, file)
+    file$correction.factor <- rep(cor.fact[i,1], length(file$sample.id))
+    file$problem <- rep(cor.fact[i,2], length(file$sample.id))
+    
+    p_out <- rbind(p_out, file)
   }  else{} 
   
 }
 
+# change variable types to double
+p_out$sample.id <- as.character(p_out$sample.id)
+p_out$P <- as.double(as.character(p_out$P))
+p_out$P.Std.Dev <- as.double(as.character(p_out$P.Std.Dev))
+p_out$P.Co.Var  <- as.double(as.character(p_out$P.Co.Var))
 
-file_out$P_filename <- as.factor(file_out$P_filename)
 
-p.names.loop$name <- as.character(unique(file_out$P_filename))
+p_out$P.filename <- as.factor(p_out$P.filename)
+p.names.loop <- NULL
+p.names.loop$name <- as.character(unique(p_out$P.filename))
 
 p.names.loop <- as.data.frame(p.names.loop)
-p.names.loop$nbr <- seq(1:94)
+p.names.loop$nbr <- seq(1:86)
+p.names.loop <- p.names.loop[1:94,]
 
-p.names.loop <- as.data.frame(p.names.loop)
 # p.names.loop <- p.names.loop[1:94,]
 # p.names.loop <- as.character(p.names.loop)
 # test <- cbind(p.files$name, p.names.loop)
 
-p.missing <- anti_join(p.names.loop, p.files, by = name)
+#### keep working on this part to figure out the three missing file names
+p.missing <- anti_join(p.files, p.names.loop, by = name)
+i=1
+i=2
+i=3
+p.missing$name[i]
+file <- read_sheet(p.missing$id[i])
+sub.p.files <- p.missing
 
 ###### END OF PHOSPHORUS DATA ######
 
@@ -198,13 +216,13 @@ names <- c("file.name", "id", "row.length", "column.length")
 colnames(cn.info) <- names
 cn.info <- as.data.frame(cn.info)
 
-cn_out <- tibble(sample.id = "NA", year = 0, site = "NA",
-                 taxon = "NA",  C = 0,  N = 0, CN.ratio = 0, 
-                 d15N = 0, d13C = 0, date.processed = "NA", 
-                 file.name = "NA")
+# cn_out <- tibble(sample.id = "NA", year = 0, site = "NA",
+#                  taxon = "NA",  C = 0,  N = 0, CN.ratio = 0, 
+#                  d15N = 0, d13C = 0, date.processed = "NA", 
+#                  file.name = "NA")
 
 cn_out <- tibble(sample.id = "NA", site = "NA",
-                  C = 0,  N = 0, CN.ratio = 0, 
+                 C = 0,  N = 0,   CN.ratio = 0, 
                  d15N = 0, d13C = 0, year = "NA", cn.file.name = "NA")
 
 cn_out.1 <- tibble(sample.id = "NA", site = "NA", year = "NA", cn.file.name = "NA")
@@ -285,6 +303,16 @@ for(i in 1:max(length(cn.files.sub$name))){
   }
 }
 
+
+cn_out$sample.id <- as.character(cn_out$sample.id)
+cn_out$C <- as.double(as.character(cn_out$C))
+cn_out$N <- as.double(as.character(cn_out$N))
+cn_out$CN.ratio <- as.double(as.character(cn_out$CN.ratio))
+cn_out$d15N <- as.double(as.character(cn_out$d15N))
+cn_out$d13C <- as.double(as.character(cn_out$d13C))
+
+cn_out.1$sample.id <- as.character(cn_out.1$sample.id)
+
 ##### end CN ######
 
 ##### start other master ######
@@ -294,8 +322,48 @@ master.files <- master.files[-which(master.files$name %like% ".xls"),]
 file.1 <- read_sheet(master.files$id[1])
 file.2 <- read_sheet(master.files$id[2])
 
+p_out$sample.id <- as.character(p_out$sample.id)
+
+test <- inner_join(cn_out, p_out, by = "sample.id")
+
+# renaming first master file
+colnames.file.1  <- c("sample.id", "year", "site",        "taxon", "C", "N", 
+                      "CN.ratio" , "d15N", "d13C", "cn.file.name", "P", "P.Std.Dev",
+                      "P.Co.Var" , "P.filename", "Notes") 
+colnames(file.1) <- colnames.file.1
+
+# renaming second master file
+colnames.file.2  <- c("site", "sample.id", "C", "N", "CN.ratio", "d15N", "d13C",
+                      "cn.file.name", "P", "P.Std.Dev", "P.Co.Var","P.filename",  "Notes")
+colnames(file.2) <- colnames.file.2
+
+file.2$taxon <- "NA"
+
+file.1$sample.id <- as.character(file.1$sample.id)
+file.1$C <- as.double(as.character(file.1$C))
+file.1$N <- as.double(as.character(file.1$N))
+file.1$CN.ratio <- as.double(as.character(file.1$CN.ratio))
+file.1$d15N <- as.double(as.character(file.1$d15N))
+file.1$d13C <- as.double(as.character(file.1$d13C))
+file.1$P <- as.double(as.character(file.1$P))
+file.1$P.Std.Dev <- as.double(as.character(file.1$P.Std.Dev))
+file.1$P.Co.Var  <- as.double(as.character(file.1$P.Co.Var))
+
+file.2$sample.id <- as.character(file.2$sample.id)
+file.2$C <- as.double(as.character(file.2$C))
+file.2$N <- as.double(as.character(file.2$N))
+file.2$CN.ratio <- as.double(as.character(file.2$CN.ratio))
+file.2$d15N <- as.double(as.character(file.2$d15N))
+file.2$d13C <- as.double(as.character(file.2$d13C))
+file.2$P <- as.double(as.character(file.2$P))
+file.2$P.Std.Dev <- as.double(as.character(file.2$P.Std.Dev))
+file.2$P.Co.Var  <- as.double(as.character(file.2$P.Co.Var))
+# file.2 <- file.2[,c(1:3, 14, 4:13)]
 
 
+test.2 <- full_join(file.2, file.1, by = c("sample.id",  "site", "taxon",   "C", "N", 
+                                           "CN.ratio" , "d15N", "d13C", "cn.file.name", "P", 
+                                           "P.Std.Dev", "P.Co.Var", "P.filename", "Notes"))
 
 
 # CN files pre-Isotope lab have dim of 108 rows and 8 columns
