@@ -2,14 +2,40 @@
 ### Enquist lab CNP workflow ###
 #################################
 
+# INSTALL LIBRARIES
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("googlesheets4")
+install.packages("readxl")
+install.packages("R.utils")
+install.packages("broom")
+install.packages("googledrive")
+install.packages("glue")
+install.packages("dplyr")
+# install.packages("dplyr")
+install.packages("devtools")
+install.packages("curl")
+
+
 # LOAD LIBRARIES
 library("tidyverse")
 library("lubridate")
-library("googlesheets")
+# devtools::install_github("tidyverse/googlesheets4")
+library("googlesheets4")
 library("readxl")
 library("R.utils")
 library("broom")
 library("googledrive")
+library("glue")
+library("tidyr")
+library("plyr")
+library("curl")
+
+# download all csv files in the shared Google Drive folder
+
+data.1 <- drive_ls(path = "EnquistLab_CNP_Workflow/IsotopeData", type = "spreadsheet")
+
+
 
 pn <- . %>% print(n = Inf)
 
@@ -42,8 +68,8 @@ creat_ID_list <- function(envelope_codes){
 #### PHOSPHORUS DATA ####
 # Download Phosphorus data from google sheet
 import_phosphorus_data <- function(){
-  cnp <- gs_title("CNP_Template")
-  p <- gs_read(ss = cnp, ws = "Phosphorus") %>% as_tibble()
+  cnp <- drive_get("CNP_Template")
+  p <- read_sheet(ss = cnp, sheet = "Phosphorus") %>% as_tibble()
   return(p)
 }
 
@@ -125,7 +151,7 @@ original_phosphor_data <- function(p, ModelResult){
 }
 
 
-# wheat: check values, flag/remove, calculate convertion factor
+# wheat: check values, flag/remove, calculate correction factor
 calculate_correction_factor <- function(OriginalValues, RedWheatValue = 0.137){
   
   CorrectionFactor <- OriginalValues %>% 
@@ -171,24 +197,33 @@ checkIDs <- function(CorrectedValues, all_codes){
 #### CN DATA ####
 # download isotope data from google drive
 download_isotope_data <- function(){
-  path <- "EnquistLab_CNP_Workflow/Isotope data"
-  list_of_files <- drive_ls(path = path, pattern = "xlsx") %>% 
-    pull(id)
+  path <- "EnquistLab_CNP_Workflow/IsotopeData"
+  list_of_files <- drive_ls(path = path, pattern = "REPORT") 
   
-  map(list_of_files, ~drive_download(as_id(.), path = file.path("isotope_data", .), overwrite = TRUE))
-
+  # this map function works to download the files as XLSX (should be CSV) into a local spot on computer
+  map(list_of_files$name, drive_download, overwrite = TRUE)
+  
+  # previous version with list_of_files being only GoogleSheet ID
+  # didn't work
+   # map(list_of_files, ~drive_download(as_id(.), path = file.path("isotope_data", .), overwrite = TRUE))
+   # map(list_of_files$id, ~drive_download(as_id(.), path = file.path("isotope_data", .), overwrite = TRUE))
+  # Error is:
+      #Error in curl::curl_fetch_disk(url, x$path, handle = handle) : 
+      #Failed to open file _______ and then file name it is attempting to download
+ 
 }
 
 
 # import CN and isotope data and merge
 import_cn_data <- function(import_path_name){
   # CN mass
-  cnp <- gs_title("CNP_Template")
-  cn_mass <- gs_read(ss = cnp, ws = "CN") %>% 
+  # cnp <- gs_title("CNP_Template")
+  cnp <- drive_get("CNP_Template")
+  cn_mass <- read_sheet(ss = cnp, sheet = "CN") %>% 
     mutate(Samples_Nr = as.character(Samples_Nr)) %>% 
     as_tibble()
   
-  # Read isotope data
+  # Read isotope data ------------- STOPPED HERE KEEP WORKING ON THIS PART
   list_files <- dir(path = import_path_name, pattern = "\\.xlsx$", full.names = TRUE)
   cn_isotopes <- map(list_files, read_excel, skip = 13) %>% 
     map_df(~{select(.,-c(...12:...17)) %>% 
