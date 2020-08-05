@@ -16,7 +16,7 @@ install.packages("BIEN")
 library("devtools")
 library("tidyverse")
 library("lubridate")
-devtools::install_github("tidyverse/googlesheets4")
+# devtools::install_github("tidyverse/googlesheets4")
 library("googlesheets4")
 library("readxl")
 library("R.utils")
@@ -159,11 +159,11 @@ for(i in 1:max(length(sub.p.files$name))){
     
     colnames(file)  <- c("site", "sample.id", "column", "corrected", "P", "P.Std.Dev", "P.Co.Var")
     file <- file[which(file$column == "C"),]
-    file <- filter(file, file$site != "Hard Red Spring Wheat Flour")
+    file <- file[-which(file$site == "Hard Red Spring Wheat Flour"),]
     
     file <- file[,-c(3:4)]
     
-    file$year <- rep(str_extract(string = sub.p.files$name[i], pattern = "20[0-9]+"), length(file$sample.id))
+    file$year.p <- rep(str_extract(string = sub.p.files$name[i], pattern = "20[0-9]+"), length(file$sample.id))
     file$P.filename <- rep(sub.p.files$name[i])
     
     file$correction.factor <- rep(cor.fact[i,1], length(file$sample.id))
@@ -186,7 +186,8 @@ p.names.loop <- NULL
 p.names.loop$name <- as.character(unique(p_out$P.filename))
 
 p.names.loop <- as.data.frame(p.names.loop)
-p.names.loop$nbr <- seq(1:86)
+p.names.loop$nbr <- seq(1:88)
+p.names.loop$nbr <- seq(1:89)
 p.names.loop <- p.names.loop[1:94,]
 
 # p.names.loop <- p.names.loop[1:94,]
@@ -196,12 +197,54 @@ p.names.loop <- p.names.loop[1:94,]
 #### keep working on this part to figure out the three missing file names
 p.missing <- anti_join(p.files, p.names.loop, by = name)
 i=1
-i=2
-i=3
+
 p.missing$name[i]
 file <- read_sheet(p.missing$id[i])
 sub.p.files <- p.missing
 
+for(i in 1:max(length(p.missing$name))){
+  file <- read_sheet(p.missing$id[i])
+  
+  if (dim(file)[1] == 90){
+    
+    if(is.na(file[[89,16]])){
+      cor.fact[i,2] <- "File has no data"
+      cor.fact[i,3] <- sub.p.files$name[i]
+    } else{
+      
+      cor.fact[i,1] <- file[[89,16]]
+      cor.fact[i,3] <- sub.p.files$name[i]
+      
+      if(cor.fact[i,1] > 1.50){
+        cor.fact[i,2] <- "Greater than 1.50"
+      } else{}
+      
+      if(cor.fact[i,1] < 0.85){
+        cor.fact[i,2] <- "Less than 0.85"
+      } else{}
+      
+    }
+    
+    file <- file[10:90, c(1:2, 5, 15:18)]
+    colnames(file) <- file[2,]
+    
+    colnames(file)  <- c("site", "sample.id", "column", "corrected", "P", "P.Std.Dev", "P.Co.Var")
+    file <- file[which(file$column == "C"),]
+  
+    file <- file[-which(file$site == "Hard Red Spring Wheat Flour"),]
+    
+    file <- file[,-c(3:4)]
+    
+    file$year.p <- rep(str_extract(string = sub.p.files$name[i], pattern = "20[0-9]+"), length(file$sample.id))
+    file$P.filename <- rep(sub.p.files$name[i])
+    
+    file$correction.factor <- rep(cor.fact[i,1], length(file$sample.id))
+    file$problem <- rep(cor.fact[i,2], length(file$sample.id))
+    
+    p_out <- rbind(p_out, file)
+  }  else{} 
+  
+}
 ###### END OF PHOSPHORUS DATA ######
 
 #### CN DATA #####
@@ -223,9 +266,9 @@ cn.info <- as.data.frame(cn.info)
 
 cn_out <- tibble(sample.id = "NA", site = "NA",
                  C = 0,  N = 0,   CN.ratio = 0, 
-                 d15N = 0, d13C = 0, year = "NA", cn.file.name = "NA")
+                 d15N = 0, d13C = 0, year.cn = "NA", cn.file.name = "NA")
 
-cn_out.1 <- tibble(sample.id = "NA", site = "NA", year = "NA", cn.file.name = "NA")
+cn_out.1 <- tibble(sample.id = "NA", site = "NA", year.cn = "NA", cn.file.name = "NA")
 cn.sub <- NULL
 
 
@@ -250,7 +293,7 @@ for(i in 1:max(length(cn.files.sub$name))){
      colnames(file) <- file.names
      
      # extract year from file name
-     file$year <- rep(str_extract(string = cn.files.sub$name[i], pattern = "20[0-9]+"), length(file$sample.id))
+     file$year.cn <- rep(str_extract(string = cn.files.sub$name[i], pattern = "20[0-9]+"), length(file$sample.id))
      file$cn.file.name <- rep("Need results from Isotope Lab", length(file$sample.id))
      
      cn_out.1 <- rbind(cn_out.1, file)
@@ -296,7 +339,7 @@ for(i in 1:max(length(cn.files.sub$name))){
      file <- file[-c(which(is.na(file[,1]))),]
      
      # extract year from file name
-     file$year <- rep(str_extract(string = cn.files.sub$name[i], pattern = "20[0-9]+"), length(file$sample.id))
+     file$year.cn <- rep(str_extract(string = cn.files.sub$name[i], pattern = "20[0-9]+"), length(file$sample.id))
      file$cn.file.name <- rep(cn.files.sub$name[i], length(file$sample.id))
      
      cn_out <- rbind(cn_out, file) 
@@ -313,9 +356,13 @@ cn_out$d13C <- as.double(as.character(cn_out$d13C))
 
 cn_out.1$sample.id <- as.character(cn_out.1$sample.id)
 
+
 ##### end CN ######
 
 ##### start other master ######
+
+# add Stoich2012_CNP_25July2017
+# add Peru_CNP_Data_7April2017
 master.files <- missing[which(missing$name %like% "CNP_"),]
 master.files <- master.files[-which(master.files$name %like% ".xls"),]
 
@@ -324,7 +371,7 @@ file.2 <- read_sheet(master.files$id[2])
 
 p_out$sample.id <- as.character(p_out$sample.id)
 
-test <- inner_join(cn_out, p_out, by = "sample.id")
+test <- inner_join(cn_out, p_out, by = c("sample.id", "site"))
 
 # renaming first master file
 colnames.file.1  <- c("sample.id", "year", "site",        "taxon", "C", "N", 
@@ -361,15 +408,436 @@ file.2$P.Co.Var  <- as.double(as.character(file.2$P.Co.Var))
 # file.2 <- file.2[,c(1:3, 14, 4:13)]
 
 
-test.2 <- full_join(file.2, file.1, by = c("sample.id",  "site", "taxon",   "C", "N", 
-                                           "CN.ratio" , "d15N", "d13C", "cn.file.name", "P", 
+test.2 <- full_join(file.2, file.1, by = c("sample.id", "site", "taxon",   "C", "N", 
+                                           "CN.ratio" , "d15N",  "d13C", "cn.file.name", "P", 
                                            "P.Std.Dev", "P.Co.Var", "P.filename", "Notes"))
 
+test.3 <- full_join(test.2, test, by = c("sample.id",  "site",    "C", "N", 
+                                         "CN.ratio" , "d15N", "d13C", "cn.file.name", "P", 
+                                         "P.Std.Dev", "P.Co.Var", "P.filename"))
 
-# CN files pre-Isotope lab have dim of 108 rows and 8 columns
+###
+# put the unique file names in a data frame to later use anti_join
+test.3.names <- unique(test.3$cn.file.name)
+test.3.names <- append(test.3.names, unique(test.3$P.filename))
+test.3.names <- as.data.frame(test.3.names)
 
-# CN files post-Isotope lab have dim of x rows and greater than 9 columns
+name <- "name"
+colnames(test.3.names) <- name
 
+# missing <- anti_join(master.file.names, data, by = name)
+missing.total <- anti_join(test.3.names, master.file.names,  by = name)
+
+
+#### find duplicates #####
+dup <- duplicated(test.3, by = key("site", "sample.id"))
+which(dup == TRUE)
+
+dups <- test.3[which(dup == TRUE),]
+dupdup <- NULL
+
+for(i in 1:max(length(dups$sample.id))){
+  # if(length(dups$sample.id[i] == dups$sample.id[i-1]) != 0){
+    # dups$sample.id[i] == dups$sample.id[i-1]
+  # }else (duplic <- test.3[which(test.3$sample.id == dups$sample.id[i]),])
+  duplic <- test.3[which(test.3$sample.id == dups$sample.id[i]),]
+  dupdup <- rbind(duplic, dupdup)
+}
+
+duplicates <- dups[which(dups$sample.id == dups$sample.id[i]),]
+which(dups$sample.id == i)
+
+dupdup <- dupdup[-c(9:13),]
+dupdup[i,]
+
+
+
+#### make a list of projects represented in the newest master file ####
+report <- as_tibble(cbind(test.3$cn.file.name, test.3$year.cn, test.3$P.filename, test.3$year.p))
+names <- c("cn.file.name","year.cn", "p.filename", "year.p")
+colnames(report) <- names
+cn   <- unique(report$cn.file.name)
+phos <- unique(report$p.filename)
+
+cn.report <- matrix(nrow = length(cn[which(cn %like% "PE")]), ncol = 2)
+cn.rep.name <- c("project.name", "year.cn")
+colnames(cn.report) <- cn.rep.name
+
+for(i in 1:1){
+  # PERU
+    names <- cn[which(cn %like% "PE")]
+    for(i in 1:length(names)){
+        cn.report[i,1] <- "Peru"
+        cn.report[i,2] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+  # Peru
+    names <- cn[which(cn %like% "Pe")]
+    site <- rep("Peru", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    # cn.report <- append(cn.report, output, after = length(cn.report))
+    cn.report <- rbind(cn.report, output)
+  
+  # BRYANT
+    names <- cn[which(cn %like% "BRY")]
+    site <- rep("Bryant", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+    
+  # MACROSYSTEMS  
+    names <- cn[which(cn %like% "MAC")]
+    site <- rep("Macrosystems", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+    
+  # CHINA  
+    names <- cn[which(cn %like% "CHI")]
+    site <- rep("China", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+  # Costa Rica
+    names <- cn[which(cn %like% "cr")]
+    site <- rep("Costa Rica", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+    
+  # NIWOT
+    names <- cn[which(cn %like% "NIW")]
+    site <- rep("Niwot", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+    
+  # BS2
+    names <- cn[which(cn %like% "BS")]
+    site <- rep("Biosphere2", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+  
+  # Enquist
+    names <- cn[which(cn %like% "Enqui")]
+    site <- rep("Enquist", length(names))
+    year <- rep("2012", length(names))
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+    
+  # COWEETA
+    names <- cn[which(cn %like% "COW")]
+    site <- rep("Coweeta", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+  
+  # LUQILLO
+    names <- cn[which(cn %like% "LUQ")]
+    site <- rep("Luqillo", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+  
+  # Julie
+    names <- cn[which(cn %like% "JUL")]
+    site <- rep("Julie", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+  
+  # BCI
+    names <- cn[which(cn %like% "BCI")]
+    site <- rep("BCI", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+ 
+  # MTB
+    names <- cn[which(cn %like% "MTB")]
+    site <- rep("MTB", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+  
+  # Harvard
+    names <- cn[which(cn %like% "HAR")]
+    site <- rep("Harvard", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+ 
+  # Colorado
+    names <- cn[which(cn %like% "Col")]
+    site <- rep("Colorado", length(names))
+    year <- rep("NA", length(names))
+    for(i in 1:length(names)){
+      year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+    }
+    output <- cbind(site, year)
+    cn.report <- rbind(cn.report, output)
+  
+  # cn.report[i,1] <- str_extract(string = cn[i], pattern %like% "Nor")
+  # cn.report[i,2] <- str_extract(string = cn[i], pattern = "20[0-9]+")
+}
+
+cn.report <- as.data.frame(cn.report)
+cn.report$complete <- paste(cn.report$project.name, cn.report$year.cn)
+
+report.cn <- unique(cn.report$complete)
+
+# PHOSPHORUS
+phos.report <- matrix(nrow = length(phos[which(phos %like% "PE")]), ncol = 2)
+phos.rep.name <- c("project.name", "year.phos")
+colnames(phos.report) <- phos.rep.name
+
+for(i in 1:1){
+  # PERU
+  names <- phos[which(phos %like% "PE")]
+  for(i in 1:length(names)){
+    phos.report[i,1] <- "Peru"
+    phos.report[i,2] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  # Peru
+  names <- phos[which(phos %like% "Pe")]
+  site <- rep("Peru", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # BRYANT
+  names <- phos[which(phos %like% "BRY")]
+  site <- rep("Bryant", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # CHINA
+  names <- phos[which(phos %like% "CHI")]
+  site <- rep("China", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # China
+  names <- phos[which(phos %like% "Chi")]
+  site <- rep("China", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # Julie
+  names <- phos[which(phos %like% "Ju")]
+  site <- rep("Julie", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # Julie
+  names <- phos[which(phos %like% "ju")]
+  site <- rep("Julie", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # Costa Rica
+  names <- phos[which(phos %like% "2CR")]
+  site <- rep("Costa Rica", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # Hawaii
+  names <- phos[which(phos %like% "Haw")]
+  site <- rep("Hawaii", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # Puerto Rico
+  names <- phos[which(phos %like% "PR")]
+  site <- rep("Puerto Rico", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # Niwot
+  names <- phos[which(phos %like% "Niw")]
+  site <- rep("Niwot", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # MT BIGELOW
+  names <- phos[which(phos %like% "MT B")]
+  site <- rep("Mt Bigelow", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # BCI
+  names <- phos[which(phos %like% "BCI")]
+  site <- rep("BCI", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # LUQUILLO
+  names <- phos[which(phos %like% "LUQ")]
+  site <- rep("Luquillo", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # MACROSYSTEMS
+  names <- phos[which(phos %like% "MAC")]
+  site <- rep("Macrosystems", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # COWEETA
+  names <- phos[which(phos %like% "COW")]
+  site <- rep("Coweeta", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # HARVARD
+  names <- phos[which(phos %like% "HAR")]
+  site <- rep("Harvard", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # MTB
+  names <- phos[which(phos %like% "MTB")]
+  site <- rep("MTB", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # Colorado
+  names <- phos[which(phos %like% "Col")]
+  site <- rep("Colorado", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+  # BS2
+  names <- phos[which(phos %like% "BS2")]
+  site <- rep("Biosphere2", length(names))
+  year <- rep("NA", length(names))
+  for(i in 1:length(names)){
+    year[i] <- str_extract(string = names[i], pattern = "20[0-9]+")
+  }
+  output <- cbind(site, year)
+  phos.report <- rbind(phos.report, output)
+  
+}
+
+phos.report <- as.data.frame(phos.report)
+phos.report$complete <- paste(phos.report$project.name, phos.report$year.phos)
+
+report.phos <- unique(phos.report$complete)
+
+
+# SCIENTIFIC NAMES FOR THE SAMPLE IDs
+# some are located in: Plot Data Dry masses from Peru Crew - Esperanza and Wayquecha, the others for Peru do not have species data
 
 # https://stackoverflow.com/questions/47851761/r-how-to-read-a-file-from-google-drive-using-r
 
