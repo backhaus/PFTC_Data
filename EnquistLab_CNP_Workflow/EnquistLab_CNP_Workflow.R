@@ -12,9 +12,10 @@ install.packages("broom")
 install.packages("googledrive")
 install.packages("glue")
 install.packages("dplyr")
-# install.packages("dplyr")
 install.packages("devtools")
 install.packages("curl")
+install.packages("gtools")
+install.packages("data.table")
 
 
 # LOAD LIBRARIES
@@ -30,6 +31,9 @@ library("glue")
 library("tidyr")
 library("plyr")
 library("curl")
+library("gtools")
+library("gtools")
+library("data.table")
 
 # download all csv files in the shared Google Drive folder
 
@@ -76,26 +80,61 @@ import_phosphorus_data <- function(){
 
 # pull of standard, calculate R2, choose standard for absorbance curve, make regression and plot
 get_standard <- function(p){
-  standard_concentration <- data_frame(Standard = c(0, 2, 4, 8, 12, 16),
-                                       Concentration = c(0, 0.061, 0.122, 0.242, 0.364, 0.484))
-  
+  standard_concentration <- tibble(Standard = c(0, 2, 4, 8, 12, 16),
+                                   Concentration = c(0, 0.061, 0.122, 0.242, 0.364, 0.484))
+## new code
   Standard <- p %>% 
-    select(Batch, Individual_Nr, Sample_Absorbance) %>% 
+    select(Batch, Site, Individual_Nr, Sample_Absorbance) %>% 
     filter(Individual_Nr %in% c("Standard1", "Standard2"),
            # remove batch if Sample_Absorbance is NA; Sample has not been measured
-           !is.na(Sample_Absorbance)) %>% 
-    group_by(Batch, Individual_Nr) %>% 
-    nest(.key = "standard") %>% 
+           !is.na(Sample_Absorbance))
+  
+  # find which has less than 6 replicates for each standard
+  Standard$x <- paste(Standard$Batch, Standard$Site, Standard$Individual_Nr)
+  freq <- count(Standard$x)
+  freq <- freq[which(freq$freq <6),]
+  
+  # find which now has only one standard instead of two
+  if(dim(freq)[1] != 0){
+    test <- count(substr(freq[,"x"], 1, 8))
+    add  <- test[which(odd(test$freq) == TRUE),]
+    step <- filter(Standard, Standard$x %like% add$x)
+    step <- count(unique(step$x))
+    add <- step %>% anti_join(freq, by = "x")
+    freq <- rbind(freq, add)
+  }
+
+  # remove which standards do not have 6 replicates or 
+  # both standards if one set of standards has already been removed, use anti_join()
+  
+  Standard <- Standard %>% 
+    anti_join(freq) %>% 
+    group_by(Batch, Site, Individual_Nr) %>% 
+    # nest(.key = "standard") %>% 
+    nest_legacy(.key = "standard") %>% 
     mutate(standard = map(standard, bind_cols, standard_concentration)) 
   
   return(Standard)
 }
+### previous code ####
+#   Standard <- p %>% 
+#     select(Batch, Site, Individual_Nr, Sample_Absorbance) %>% 
+#     filter(Individual_Nr %in% c("Standard1", "Standard2"),
+#            # remove batch if Sample_Absorbance is NA; Sample has not been measured
+#            !is.na(Sample_Absorbance)) %>% 
+#     group_by(Batch, Site, Individual_Nr) %>% 
+#     # nest(.key = "standard") %>% 
+#     nest_legacy(.key = "standard") %>% 
+#     mutate(standard = map(standard, bind_cols, standard_concentration)) 
+#   
+#   return(Standard)
+# }
 
-  
+
 # Plot 2 Standard curves
 plot_standards <- function(Standard){
   p1 <- Standard %>% 
-    unnest() %>% 
+    unnest(cols = c(standard)) %>% 
     ggplot(aes(x = Sample_Absorbance, y = Concentration, colour = Individual_Nr)) +
     geom_point() +
     geom_smooth(method = "lm", se = FALSE) +
@@ -124,7 +163,8 @@ original_phosphor_data <- function(p, ModelResult){
            # remove samples without mass
            !is.na(Sample_Mass)) %>% 
     group_by(Batch) %>% 
-    nest(.key = "data") %>% 
+    nest_legacy(.key = "data") %>% 
+    # nest(.key = "data") %>% #broken code 
     # add estimate from model
     left_join(ModelResult %>% select(-Individual_Nr), by = "Batch")
   
@@ -133,6 +173,9 @@ original_phosphor_data <- function(p, ModelResult){
     #   p2 <- p2 %>% 
     #     filter(!is.na(correlation))
     # }
+  
+  ####### broken here now #######
+  # p2 <- filter(p2, !is.na(Site))
   
   OriginalValues <- p2 %>% 
       mutate(data = map2(.x = data, .y = fit, ~ mutate(.x, Sample_yg_ml = predict(.y, newdata = select(.x, Sample_Absorbance))))) %>% 
