@@ -16,6 +16,12 @@ install.packages("devtools")
 install.packages("curl")
 install.packages("gtools")
 install.packages("data.table")
+install.packages("remotes")
+install.packages("purrr")
+install.packages("plyr")
+
+remotes::install_github("Plant-Functional-Trait-Course/PFTCFunctions")
+
 
 
 # LOAD LIBRARIES
@@ -29,40 +35,57 @@ library("broom")
 library("googledrive")
 library("glue")
 library("tidyr")
-library("plyr")
+library("dplyr")
 library("curl")
 library("gtools")
 library("gtools")
 library("data.table")
+library("remotes")
+library(PFTCFunctions)
+library("purrr")
+
 
 # download all csv files in the shared Google Drive folder
 
 data.1 <- drive_ls(path = "EnquistLab_CNP_Workflow/IsotopeData", type = "spreadsheet")
-
-
-
 pn <- . %>% print(n = Inf)
 
 
 ############################################################################
 #### ENVELOPE CODES ####
+# old code, new code is now get_PFTC_envelope_codes()
 # Function to create unique hashcodes (Peru: seed = 1; Svalbard: seed = 32)
-get_envelope_codes <- function(seed){
+# get_envelope_codes <- function(seed){
+#   all_codes <- crossing(A = LETTERS, B = LETTERS, C = LETTERS) %>% 
+#     mutate(code = paste0(A, B, C), 
+#            hash = (1L:n()) %% 10000L,
+#            hash = withSeed(sample(hash), seed, sample.kind = "Rounding"),
+#            hash = formatC(hash, width = 4, format = "d", flag = "0"),
+#            hashcode = paste0(code, hash)) %>% 
+#     select(hashcode)
+#   return(all_codes)
+# }
+# function here copied from get_PFTC_envelope_codes(seed = 1)
+get_PFTC_envelope_codes <- function(seed){
+  if (getRversion() < "3.6.0") {
+    set.seed(seed = seed)
+  }
+  else {
+    suppressWarnings(set.seed(seed = seed, sample.kind = "Rounding"))
+  }
   all_codes <- crossing(A = LETTERS, B = LETTERS, C = LETTERS) %>% 
-    mutate(code = paste0(A, B, C), 
-           hash = (1L:n()) %% 10000L,
-           hash = withSeed(sample(hash), seed, sample.kind = "Rounding"),
-           hash = formatC(hash, width = 4, format = "d", flag = "0"),
-           hashcode = paste0(code, hash)) %>% 
-    select(hashcode)
+    mutate(code = paste0(.data$A, .data$B, .data$C), hash = row_number()%%10000L, 
+           hash = sample(.data$hash), hash = formatC(.data$hash, 
+                                                     width = 4, format = "d", flag = "0"), 
+           hashcode = paste0(.data$code, .data$hash)) %>% select(.data$hashcode)
   return(all_codes)
 }
 
 # Create list with all valid IDs per country
 creat_ID_list <- function(envelope_codes){
-  all_codes <- get_envelope_codes(seed = 1) %>% 
+  all_codes <- get_PFTC_envelope_codes(seed = 1) %>% 
     mutate(Site = "Peru") %>% 
-    bind_rows(get_envelope_codes(seed = 32) %>% 
+    bind_rows(get_PFTC_envelope_codes(seed = 32) %>% 
                 mutate(Site = "Svalbard"))
   return(all_codes)
 }
@@ -90,25 +113,24 @@ get_standard <- function(p){
            !is.na(Sample_Absorbance))
   
   # find which has less than 6 replicates for each standard
-  Standard$x <- paste(Standard$Batch, Standard$Site, Standard$Individual_Nr)
-  freq <- count(Standard$x)
-  freq <- freq[which(freq$freq <6),]
+  # Standard$x <- paste(Standard$Batch, Standard$Site, Standard$Individual_Nr) # filter(n<6)
+  Standard$x <- paste(Standard$Batch, Standard$Site)
+  freq <- Standard %>%
+           count(x) %>%
+           filter(n<12)  
+  # both standards should have six replicates making a total of 12 per batch and site
+  # if less than 12, then we have missing information
   
-  # find which now has only one standard instead of two
+  # Remove both standards if any replicates are missing
+  # anti_join to remove the ones that are missing information from the original data frame
+  # if there are none that are less than 12 (or 6 replicates for each standard), then this part will be skipped
   if(dim(freq)[1] != 0){
-    test <- count(substr(freq[,"x"], 1, 8))
-    add  <- test[which(odd(test$freq) == TRUE),]
-    step <- filter(Standard, Standard$x %like% add$x)
-    step <- count(unique(step$x))
-    add <- step %>% anti_join(freq, by = "x")
-    freq <- rbind(freq, add)
+    Standard  <- Standard %>% anti_join(freq, by = "x")
   }
-
-  # remove which standards do not have 6 replicates or 
-  # both standards if one set of standards has already been removed, use anti_join()
+  
+  Standard <- select(Standard, -x)
   
   Standard <- Standard %>% 
-    anti_join(freq) %>% 
     group_by(Batch, Site, Individual_Nr) %>% 
     # nest(.key = "standard") %>% 
     nest_legacy(.key = "standard") %>% 
@@ -116,17 +138,17 @@ get_standard <- function(p){
   
   return(Standard)
 }
-### previous code ####
-#   Standard <- p %>% 
-#     select(Batch, Site, Individual_Nr, Sample_Absorbance) %>% 
+# ## previous code ####
+#   Standard <- p %>%
+#     select(Batch, Site, Individual_Nr, Sample_Absorbance) %>%
 #     filter(Individual_Nr %in% c("Standard1", "Standard2"),
 #            # remove batch if Sample_Absorbance is NA; Sample has not been measured
-#            !is.na(Sample_Absorbance)) %>% 
-#     group_by(Batch, Site, Individual_Nr) %>% 
-#     # nest(.key = "standard") %>% 
-#     nest_legacy(.key = "standard") %>% 
-#     mutate(standard = map(standard, bind_cols, standard_concentration)) 
-#   
+#            !is.na(Sample_Absorbance)) %>%
+#     group_by(Batch, Site, Individual_Nr) %>%
+#     # nest(.key = "standard") %>%
+#     nest_legacy(.key = "standard") %>%
+#     mutate(standard = map(standard, bind_cols, standard_concentration))
+# 
 #   return(Standard)
 # }
 
@@ -170,10 +192,10 @@ original_phosphor_data <- function(p, ModelResult){
   
     # remove if correlation is NA, but give warning
     # if(nrow(p2 %>% filter(is.na(correlation))) > 0){
-    #   p2 <- p2 %>% 
+    #   p2 <- p2 %>%
     #     filter(!is.na(correlation))
     # }
-  
+
   ####### broken here now #######
   # p2 <- filter(p2, !is.na(Site))
   
