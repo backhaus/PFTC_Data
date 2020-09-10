@@ -197,10 +197,12 @@ original_phosphor_data <- function(p, ModelResult){
     # }
 
   ####### broken here now #######
-  # p2 <- filter(p2, !is.na(Site))
-  
+  p2 <- filter(p2, !is.na(Site))
+               
   OriginalValues <- p2 %>% 
       mutate(data = map2(.x = data, .y = fit, ~ mutate(.x, Sample_yg_ml = predict(.y, newdata = select(.x, Sample_Absorbance))))) %>% 
+  # unnest function is bringing up an error. Names must be unique "Site" at locations 2 and 15 are duplicated
+    # probably with Peru and Svalbard being the only two levels... not sure how to fix it.
     unnest(data) %>% 
     mutate(Pmass = Sample_yg_ml * Volume_of_Sample_ml,
            Pconc = Pmass / Sample_Mass * 100) %>% 
@@ -212,6 +214,7 @@ original_phosphor_data <- function(p, ModelResult){
     # flag data
     mutate(Flag_orig = ifelse(CoeffVarP >= 0.2, "flag", ""))
   
+
   return(OriginalValues)
 }
 
