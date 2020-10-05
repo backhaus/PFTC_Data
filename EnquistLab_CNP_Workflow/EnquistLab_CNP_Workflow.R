@@ -53,19 +53,6 @@ pn <- . %>% print(n = Inf)
 
 ############################################################################
 #### ENVELOPE CODES ####
-# old code, new code is now get_PFTC_envelope_codes()
-# Function to create unique hashcodes (Peru: seed = 1; Svalbard: seed = 32)
-# get_envelope_codes <- function(seed){
-#   all_codes <- crossing(A = LETTERS, B = LETTERS, C = LETTERS) %>% 
-#     mutate(code = paste0(A, B, C), 
-#            hash = (1L:n()) %% 10000L,
-#            hash = withSeed(sample(hash), seed, sample.kind = "Rounding"),
-#            hash = formatC(hash, width = 4, format = "d", flag = "0"),
-#            hashcode = paste0(code, hash)) %>% 
-#     select(hashcode)
-#   return(all_codes)
-# }
-# function here copied from get_PFTC_envelope_codes(seed = 1)
 get_PFTC_envelope_codes <- function(seed){
   if (getRversion() < "3.6.0") {
     set.seed(seed = seed)
@@ -101,9 +88,7 @@ import_phosphorus_data <- function(){
 }
 
 
-# pull of standard, calculate R2, choose standard for absorbance curve, make regression and plot
-
-  ##### Aud's updated code #####
+##### Aud's updated code for this function #####
   # pull of standard, calculate R2, choose standard for absorbance curve, make regression and plot
   get_standard <- function(p){
     standard_concentration <- tibble(Standard = c(0, 2, 4, 8, 12, 16),
@@ -123,65 +108,10 @@ import_phosphorus_data <- function(){
 
     return(Standard)
   }
-  
-# ## previous code ####
-#   Standard <- p %>%
-#     select(Batch, Site, Individual_Nr, Sample_Absorbance) %>%
-#     filter(Individual_Nr %in% c("Standard1", "Standard2"),
-#            # remove batch if Sample_Absorbance is NA; Sample has not been measured
-#            !is.na(Sample_Absorbance)) %>%
-#     group_by(Batch, Site, Individual_Nr) %>%
-#     # nest(.key = "standard") %>%
-#     nest_legacy(.key = "standard") %>%
-#     mutate(standard = map(standard, bind_cols, standard_concentration))
-# 
-#   return(Standard)
-# }
-  
-################
-  
-#   ## Lindsay's clunky version of new code
-# get_standard <- function(p){
-#   standard_concentration <- tibble(Standard = c(0, 2, 4, 8, 12, 16),
-#                                    Concentration = c(0, 0.061, 0.122, 0.242, 0.364, 0.484))
-  
-#   Standard <- p %>% 
-#     select(Batch, Site, Individual_Nr, Sample_Absorbance) %>% 
-#     filter(Individual_Nr %in% c("Standard1", "Standard2"),
-#            # remove batch if Sample_Absorbance is NA; Sample has not been measured
-#            !is.na(Sample_Absorbance))
-#   
-#   # find which has less than 6 replicates for each standard
-#   # Standard$x <- paste(Standard$Batch, Standard$Site, Standard$Individual_Nr) # filter(n<6)
-#   Standard$x <- paste(Standard$Batch, Standard$Site)
-#   freq <- Standard %>%
-#     count(x) %>%
-#     filter(n<12)  
-#   # both standards should have six replicates making a total of 12 per batch and site
-#   # if less than 12, then we have missing information
-#   
-#   # Remove both standards if any replicates are missing
-#   # anti_join to remove the ones that are missing information from the original data frame
-#   # if there are none that are less than 12 (or 6 replicates for each standard), then this part will be skipped
-#   if(dim(freq)[1] != 0){
-#     Standard  <- Standard %>% anti_join(freq, by = "x")
-#   }
-#   
-#   Standard <- select(Standard, -x)
-#   
-#   Standard <- Standard %>% 
-#     group_by(Batch, Site, Individual_Nr) %>% 
-#     # nest(.key = "standard") %>% 
-#     nest_legacy(.key = "standard") %>% 
-#     mutate(standard = map(standard, bind_cols, standard_concentration)) 
-#   
-#   return(Standard)
-# }
-
 
 
 # Plot 2 Standard curves
-# make sure this does it by Site as well
+# make sure this does it by Site as well - double check this bit
 plot_standards <- function(Standard){
   p1 <- Standard %>% 
     unnest(cols = c(standard)) %>% 
@@ -204,10 +134,6 @@ standard_model <- function(Standard){
   return(ModelResult)
 }
 
-
-# this part is repeating all batches of Batch.x for each number of Batch.y, meaning we have 52 duplicates
-# for the first batch. Also meaning, we have 52 repeated individuals from batch.x but varying standards because
-# it is joined from each Batch.y
 
 # Calculate Mean, sd, coeficiant variability for each leaf and flag data
 original_phosphor_data <- function(p, ModelResult){
