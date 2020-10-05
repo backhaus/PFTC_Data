@@ -102,42 +102,28 @@ import_phosphorus_data <- function(){
 
 
 # pull of standard, calculate R2, choose standard for absorbance curve, make regression and plot
-get_standard <- function(p){
-  standard_concentration <- tibble(Standard = c(0, 2, 4, 8, 12, 16),
-                                   Concentration = c(0, 0.061, 0.122, 0.242, 0.364, 0.484))
-## new code
-  Standard <- p %>% 
-    select(Batch, Site, Individual_Nr, Sample_Absorbance) %>% 
-    filter(Individual_Nr %in% c("Standard1", "Standard2"),
-           # remove batch if Sample_Absorbance is NA; Sample has not been measured
-           !is.na(Sample_Absorbance))
-  
-  # find which has less than 6 replicates for each standard
-  # Standard$x <- paste(Standard$Batch, Standard$Site, Standard$Individual_Nr) # filter(n<6)
-  Standard$x <- paste(Standard$Batch, Standard$Site)
-  freq <- Standard %>%
-           count(x) %>%
-           filter(n<12)  
-  # both standards should have six replicates making a total of 12 per batch and site
-  # if less than 12, then we have missing information
-  
-  # Remove both standards if any replicates are missing
-  # anti_join to remove the ones that are missing information from the original data frame
-  # if there are none that are less than 12 (or 6 replicates for each standard), then this part will be skipped
-  if(dim(freq)[1] != 0){
-    Standard  <- Standard %>% anti_join(freq, by = "x")
+
+  ##### Aud's updated code #####
+  # pull of standard, calculate R2, choose standard for absorbance curve, make regression and plot
+  get_standard <- function(p){
+    standard_concentration <- tibble(Standard = c(0, 2, 4, 8, 12, 16),
+                                     Concentration = c(0, 0.061, 0.122, 0.242, 0.364, 0.484))
+
+    Standard <- p %>%
+      select(Site, Batch, Individual_Nr, Sample_Absorbance) %>%
+      filter(Individual_Nr %in% c("Standard1", "Standard2"),
+             # remove batch if Sample_Absorbance is NA; Sample has not been measured
+             !is.na(Sample_Absorbance)) %>%
+      group_by(Site, Batch, Individual_Nr) %>%
+      # not a good solution!!!
+      mutate(n = n()) %>%
+      filter(n == 6) %>%
+      nest(standard = c(Sample_Absorbance)) %>%
+      mutate(standard = map(standard, bind_cols, standard_concentration))
+
+    return(Standard)
   }
   
-  Standard <- select(Standard, -x)
-  
-  Standard <- Standard %>% 
-    group_by(Batch, Site, Individual_Nr) %>% 
-    # nest(.key = "standard") %>% 
-    nest_legacy(.key = "standard") %>% 
-    mutate(standard = map(standard, bind_cols, standard_concentration)) 
-  
-  return(Standard)
-}
 # ## previous code ####
 #   Standard <- p %>%
 #     select(Batch, Site, Individual_Nr, Sample_Absorbance) %>%
@@ -151,9 +137,51 @@ get_standard <- function(p){
 # 
 #   return(Standard)
 # }
+  
+################
+  
+#   ## Lindsay's clunky version of new code
+# get_standard <- function(p){
+#   standard_concentration <- tibble(Standard = c(0, 2, 4, 8, 12, 16),
+#                                    Concentration = c(0, 0.061, 0.122, 0.242, 0.364, 0.484))
+  
+#   Standard <- p %>% 
+#     select(Batch, Site, Individual_Nr, Sample_Absorbance) %>% 
+#     filter(Individual_Nr %in% c("Standard1", "Standard2"),
+#            # remove batch if Sample_Absorbance is NA; Sample has not been measured
+#            !is.na(Sample_Absorbance))
+#   
+#   # find which has less than 6 replicates for each standard
+#   # Standard$x <- paste(Standard$Batch, Standard$Site, Standard$Individual_Nr) # filter(n<6)
+#   Standard$x <- paste(Standard$Batch, Standard$Site)
+#   freq <- Standard %>%
+#     count(x) %>%
+#     filter(n<12)  
+#   # both standards should have six replicates making a total of 12 per batch and site
+#   # if less than 12, then we have missing information
+#   
+#   # Remove both standards if any replicates are missing
+#   # anti_join to remove the ones that are missing information from the original data frame
+#   # if there are none that are less than 12 (or 6 replicates for each standard), then this part will be skipped
+#   if(dim(freq)[1] != 0){
+#     Standard  <- Standard %>% anti_join(freq, by = "x")
+#   }
+#   
+#   Standard <- select(Standard, -x)
+#   
+#   Standard <- Standard %>% 
+#     group_by(Batch, Site, Individual_Nr) %>% 
+#     # nest(.key = "standard") %>% 
+#     nest_legacy(.key = "standard") %>% 
+#     mutate(standard = map(standard, bind_cols, standard_concentration)) 
+#   
+#   return(Standard)
+# }
+
 
 
 # Plot 2 Standard curves
+# make sure this does it by Site as well
 plot_standards <- function(Standard){
   p1 <- Standard %>% 
     unnest(cols = c(standard)) %>% 
@@ -170,40 +198,48 @@ plot_standards <- function(Standard){
 standard_model <- function(Standard){
   ModelResult <- Standard %>% 
     mutate(correlation = map_dbl(standard, ~cor(.$Sample_Absorbance, .$Concentration, use = "pair"))) %>% 
-    group_by(Batch) %>% 
+    group_by(Site, Batch) %>% 
     slice(which.max(correlation)) %>% 
     mutate(fit = map(standard, ~lm(Concentration ~ Sample_Absorbance, .)))
   return(ModelResult)
 }
 
 
+# this part is repeating all batches of Batch.x for each number of Batch.y, meaning we have 52 duplicates
+# for the first batch. Also meaning, we have 52 repeated individuals from batch.x but varying standards because
+# it is joined from each Batch.y
 
 # Calculate Mean, sd, coeficiant variability for each leaf and flag data
 original_phosphor_data <- function(p, ModelResult){
+  # p2 <- filter(p2, !is.na(Site))
   p2 <- p %>% 
     filter(!Individual_Nr %in% c("Standard1", "Standard2"),
            # remove samples without mass
            !is.na(Sample_Mass)) %>% 
-    group_by(Batch) %>% 
-    nest_legacy(.key = "data") %>% 
-    # nest(.key = "data") %>% #broken code 
-    # add estimate from model
-    left_join(ModelResult %>% select(-Individual_Nr), by = "Batch")
+    group_by(Site, Batch) %>% 
+    # nest_legacy(.key = "data") %>% 
+    nest_legacy(.key = "data") 
   
+    p2$Site  <- as.factor(p2$Site)
+    p2$Batch <- as.factor(p2$Batch)
+    ModelResult$Site  <- as.factor(ModelResult$Site)
+    ModelResult$Batch <- as.factor(ModelResult$Batch)
+    
+    p2 <- left_join(ModelResult %>% select(-Individual_Nr), p2, by = c("Site", "Batch"))
+ 
     # remove if correlation is NA, but give warning
     # if(nrow(p2 %>% filter(is.na(correlation))) > 0){
     #   p2 <- p2 %>%
     #     filter(!is.na(correlation))
     # }
 
-  ####### broken here now #######
-  p2 <- filter(p2, !is.na(Site))
+  # to remove Batches that were incomplete, either with only one standard or less than 6 replicates for a standard
                
   OriginalValues <- p2 %>% 
       mutate(data = map2(.x = data, .y = fit, ~ mutate(.x, Sample_yg_ml = predict(.y, newdata = select(.x, Sample_Absorbance))))) %>% 
   # unnest function is bringing up an error. Names must be unique "Site" at locations 2 and 15 are duplicated
     # probably with Peru and Svalbard being the only two levels... not sure how to fix it.
-    unnest(data) %>% 
+    unnest(data) %>%
     mutate(Pmass = Sample_yg_ml * Volume_of_Sample_ml,
            Pconc = Pmass / Sample_Mass * 100) %>% 
     # Calculate mean, sd, coefficient of variation
@@ -218,7 +254,7 @@ original_phosphor_data <- function(p, ModelResult){
   return(OriginalValues)
 }
 
-
+# new errors here. oh boy.
 # wheat: check values, flag/remove, calculate correction factor
 calculate_correction_factor <- function(OriginalValues, RedWheatValue = 0.137){
   
