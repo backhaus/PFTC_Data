@@ -254,7 +254,7 @@ original_phosphor_data <- function(p, ModelResult){
   return(OriginalValues)
 }
 
-# new errors here. oh boy.
+
 # wheat: check values, flag/remove, calculate correction factor
 calculate_correction_factor <- function(OriginalValues, RedWheatValue = 0.137){
   
@@ -326,16 +326,18 @@ import_cn_data <- function(import_path_name){
   cn_mass <- read_sheet(ss = cnp, sheet = "CN") %>% 
     mutate(Samples_Nr = as.character(Samples_Nr)) %>% 
     as_tibble()
-  
+
+# for line by line, current path value needs to be passed into import_path_name
+  # trouble reading in the data with the map function
   # Read isotope data ------------- STOPPED HERE KEEP WORKING ON THIS PART
   list_files <- dir(path = import_path_name, pattern = "\\.xlsx$", full.names = TRUE)
-  cn_isotopes <- map(list_files, read_excel, skip = 13) %>% 
+  cn_isotopes <- map(list_of_files, read_sheet, skip = 13) %>% 
     map_df(~{select(.,-c(...12:...17)) %>% 
         slice(1:grep("Analytical precision, 1-sigma", ...1)-1) %>% 
         filter(!is.na(...1)) %>% 
         rename(Samples_Nr = ...1, Individual_Nr = `Sample ID`, Site = ...3, Row = R, Column = C, C_percent = `C%`, N_percent = `N%`, CN_ratio = `C/N`, dN15_percent = `δ15N ‰(ATM)`, dC13_percent = `δ13C ‰(PDB)`, Remark_CN = ...11)
       })
-  
+#### error here #####  cn_isotopes <-  doesn't work
   cn_data <- cn_mass %>% 
     full_join(cn_isotopes, by = c("Samples_Nr", "Individual_Nr", "Site", "Row", "Column")) %>% 
     rename(Row_cn = Row, Column_cn = Column)
