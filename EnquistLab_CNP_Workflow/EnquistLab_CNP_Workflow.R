@@ -45,9 +45,6 @@ library(PFTCFunctions)
 library("purrr")
 
 
-# # download all csv files in the shared Google Drive folder
-# 
-# data.1 <- drive_ls(path = "EnquistLab_CNP_Workflow/IsotopeData", type = "spreadsheet")
 pn <- . %>% print(n = Inf)
 
 
