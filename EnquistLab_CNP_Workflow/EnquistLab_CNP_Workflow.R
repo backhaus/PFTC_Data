@@ -240,9 +240,7 @@ download_isotope_data <- function(){
   # Error is:
       #Error in curl::curl_fetch_disk(url, x$path, handle = handle) : 
       #Failed to open file _______ and then file name it is attempting to download
- 
 }
-
 
 # import CN and isotope data and merge
 import_cn_data <- function(import_path_name){
@@ -252,23 +250,85 @@ import_cn_data <- function(import_path_name){
   cn_mass <- read_sheet(ss = cnp, sheet = "CN") %>% 
     mutate(Samples_Nr = as.character(Samples_Nr)) %>% 
     as_tibble()
-
-# for line by line, current path value needs to be passed into import_path_name
-  # trouble reading in the data with the map function
-  # Read isotope data ------------- STOPPED HERE KEEP WORKING ON THIS PART
-  list_files <- dir(path = import_path_name, pattern = "\\.xlsx$", full.names = TRUE)
-  cn_isotopes <- map(list_of_files, read_sheet, skip = 13) %>% 
-    map_df(~{select(.,-c(...12:...17)) %>% 
-        slice(1:grep("Analytical precision, 1-sigma", ...1)-1) %>% 
-        filter(!is.na(...1)) %>% 
-        rename(Samples_Nr = ...1, Individual_Nr = `Sample ID`, Site = ...3, Row = R, Column = C, C_percent = `C%`, N_percent = `N%`, CN_ratio = `C/N`, dN15_percent = `δ15N ‰(ATM)`, dC13_percent = `δ13C ‰(PDB)`, Remark_CN = ...11)
-      })
-#### error here #####  cn_isotopes <-  doesn't work
+  
+# read in all Google sheet files by Sheet ID, sometimes this is finnicky and will error but try again,
+  # it should work the second time
+  path <- "EnquistLab_CNP_Workflow/IsotopeData"
+  list_of_files <- drive_ls(path = path, pattern = "REPORT") 
+  
+  cn_files <- map(list_of_files$id, read_sheet, skip = 13)
+  
+# create cn_isotopes to hold the data
+  cn_holder <- tibble(Samples_Nr = as.character(), Individual_Nr = as.character(),
+                      Site = as.character(), Row = as.character(), Column = as.numeric(),
+                      C_percent = as.list(NA), N_percent = as.list(NA), CN_ratio <- as.list(NA),
+                      dN15_percent = as.list(NA), dC13_percent = as.list(NA), Remark_CN = as.logical(NA))
+  
+  # go through each and manipulate based on specific dimensions 
+  for(i in 1:max(length(cn_files))){
+  
+     if(dim(cn_files[[i]])[2] <=4){
+       next
+       # these need to be skipped
+       # no usable data
+     }
+     # larger than 4 columns but less than 12, these do not include extra columns
+     if(dim(cn_files[[i]])[2] > 4 & dim(cn_files[[i]])[2] < 12){
+       if(dim(cn_files[[i]])[2] == 10){
+         cn_isotopes <-  cn_files[[i]] %>% 
+                         slice(1:grep("Analytical precision, 1-sigma", ...1)-1) %>% 
+                         filter(!is.na(...1)) %>% 
+                         rename(Samples_Nr = ...1, Individual_Nr = `Sample ID`, Site = ...3, Row = R, Column = C, 
+                                C_percent = `C%` , N_percent = `N%`, CN_ratio = `C/N`, dN15_percent = `δ15N ‰(ATM)`, 
+                                dC13_percent = `δ13C ‰(PDB)`#, Remark_CN = ...11
+         )
+         # add 11th column of Remark_CN for easier join/rbinding
+         cn_isotopes$Remark_CN  <- as.logical(NA)
+         cn_isotopes$Samples_Nr <- as.character(cn_isotopes$Samples_Nr)
+       } # end if( dim == 10)
+       if(dim(cn_files[[i]])[2] == 11){
+         cn_isotopes <-  cn_files[[i]] %>% 
+                         slice(1:grep("Analytical precision, 1-sigma", ...1)-1) %>% 
+                         filter(!is.na(...1)) %>% 
+                         rename(Samples_Nr = ...1, Individual_Nr = `Sample ID`, Site = ...3, Row = R, Column = C, 
+                                C_percent = `C%` , N_percent = `N%`, CN_ratio = `C/N`, dN15_percent = `δ15N ‰(ATM)`, 
+                                dC13_percent = `δ13C ‰(PDB)`, Remark_CN = ...11
+         ) 
+         cn_isotopes$Samples_Nr <- as.character(cn_isotopes$Samples_Nr)
+       } # end if(dim == 11)
+     } # end if(dim > 4 and < 12)
+     
+     # these ones have more than 12 columns. The assumption is that any column after 12 will have information that is not needed.
+     # the select function excludes the columns greater than 12 up to the total number of columns
+     if(dim(cn_files[[i]])[2] >= 12){
+       cn_isotopes <-  cn_files[[i]] %>% 
+                       select(.,-c(...12:dim(cn_files[[i]])[2])) %>% 
+                       slice(1:grep("Analytical precision, 1-sigma", ...1)-1) %>% 
+                       filter(!is.na(...1)) %>% 
+                       rename(Samples_Nr = ...1, Individual_Nr = `Sample ID`, Site = ...3, Row = R, Column = C, 
+                              C_percent = `C%` , N_percent = `N%`, CN_ratio = `C/N`, dN15_percent = `δ15N ‰(ATM)`, 
+                              dC13_percent = `δ13C ‰(PDB)`, Remark_CN = ...11
+        )  
+       cn_isotopes$Samples_Nr <- as.character(cn_isotopes$Samples_Nr)
+     } # end if(dim >= 12)
+   
+    # remove NULL/NA columns
+    cn_isotopes <- cn_isotopes %>% filter(., Samples_Nr != "NULL")
+    
+    # combine into new tibble, easier than doing a join every time
+    cn_holder <- rbind(cn_holder, cn_isotopes)
+    
+  } # end for loop
+  
+  # all columns must be same type, like numeric or character in both tibbles before joining
+  cn_mass$Column <- as.list(cn_mass$Column)
+  
+  # join cn_holder with cn_mass and create new tibble
   cn_data <- cn_mass %>% 
-    full_join(cn_isotopes, by = c("Samples_Nr", "Individual_Nr", "Site", "Row", "Column")) %>% 
+    full_join(cn_holder, by = c("Samples_Nr", "Individual_Nr", "Site", "Row", "Column")) %>% 
     rename(Row_cn = Row, Column_cn = Column)
   return(cn_data) 
-}
+} 
 
 # add date measured
 #mutate(date_measured = date)
