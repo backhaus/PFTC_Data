@@ -96,6 +96,11 @@ data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Peru"   , pattern = "P_" )
 data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Norway" , pattern = "CN_"))
 data <- rbind(data, drive_ls(path = "Stoich 2019-2020/Norway" , pattern = "P_" ))
 
+data <- rbind(data, drive_ls(path = "Anj's Folder/Traits"       , pattern = "Enqui" ))
+data <- rbind(data, drive_ls(path = "Anj's Folder/Traits/China" , pattern = "China" ))
+data <- rbind(data, drive_ls(path = "Anj's Folder/Traits/China" , pattern = "China" ))
+data <- rbind(data, drive_ls(path = "Anj's Folder/Traits/RMBL"  , pattern = "CNP_" ))
+
 # remove .xslx or .xls from data[,name]
 # data$name <- as.character(sub(".xlsx", "", data$name))
 # data$name <- as.character(sub(".xls" , "", data$name))
